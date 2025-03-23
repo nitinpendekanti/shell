@@ -2,9 +2,21 @@
 #include <string>
 #include <vector>
 #include <unistd.h>
+#include <termios.h>
+#include <stdio.h>
 #include <errno.h>
 #include <unordered_map>
 #include <filesystem>
+
+/*
+* To Do:
+    * add arguments to existing builtin commands
+    * Autocomplete for tabs
+    * Piping
+    * Quoting and backslash escaping
+    * Implement whatever globbing is
+    * Increase builtins
+*/
 
 namespace nsh {
     void loop();
@@ -20,15 +32,39 @@ namespace nsh {
     int help(std::vector<std::string>& args);
     int exit(std::vector<std::string>& args);
     int pwd(std::vector<std::string>& args);
+    int ls(std::vector<std::string>& args);
 }
 
 // Mapping from builtin shell command to function
-std::unordered_map<std::string, std::function<int(std::vector<std::string>&)>> builtinCommandsMap = {
+std::unordered_map<std::string, std::function<int(std::vector<std::string>&)>> builtin_commands_map = {
     {"pwd", &nsh::pwd},
     {"cd", &nsh::cd},
     {"help", &nsh::help},
-    {"exit", &nsh::exit}
+    {"exit", &nsh::exit},
+    {"ls", &nsh::ls}
 };
+
+std::string absolute_to_relative_path(std::string& path) {
+    int pos = path.find_last_of("/");
+
+    if (pos != std::string::npos) {
+        return path.substr(pos + 1, path.size());
+    }
+
+    return path;
+}
+
+int nsh::ls(std::vector<std::string>& args) {
+    const std::filesystem::path current_path{std::filesystem::current_path()};
+
+    for (auto const& dir_entry : std::filesystem::directory_iterator{current_path}) {
+        std::string path = dir_entry.path();
+        std::cout << absolute_to_relative_path(path) << "        ";
+    }
+    std::cout << '\n';
+
+    return 1;
+}
 
 int nsh::pwd(std::vector<std::string>& args) {
     std::cout << std::filesystem::current_path().string() << '\n';
@@ -53,7 +89,7 @@ int nsh::help(std::vector<std::string>& args) {
     std::cout << "Simple shell implementation where you input a command, arguments, and press enter\n\n";
 
     std::cout << "Builtin commands: \n"; 
-    for (const auto& pair : builtinCommandsMap) {
+    for (const auto& pair : builtin_commands_map) {
         std::cout << "\t-" << pair.first << '\n';
     }
 
@@ -105,7 +141,7 @@ std::vector<std::string> nsh::split_line(const std::string& line) {
     return tokens;
 }
 
-std::vector<char*> formatArgs(std::vector<std::string>& args) {
+std::vector<char*> format_args(std::vector<std::string>& args) {
     std::vector<char*> cstrings{};
 
     for(auto& string : args)
@@ -121,7 +157,7 @@ int nsh::launch(std::vector<std::string>& args) {
     pid = fork();
     if (pid == 0) {
         // Child process
-        std::vector<char*> cargs = formatArgs(args);
+        std::vector<char*> cargs = format_args(args);
         cargs.push_back(nullptr);
 
         if (execvp(args[0].c_str(), cargs.data()) == -1) {
@@ -145,8 +181,8 @@ int nsh::execute(std::vector<std::string>& args) {
     if (args.size() == 0)
         return 1;
     
-    if (builtinCommandsMap.find(args[0]) != builtinCommandsMap.end()) {
-        return builtinCommandsMap[args[0]](args);
+    if (builtin_commands_map.find(args[0]) != builtin_commands_map.end()) {
+        return builtin_commands_map[args[0]](args);
     }
 
     return nsh::launch(args);
@@ -155,10 +191,10 @@ int nsh::execute(std::vector<std::string>& args) {
 void nsh::loop() {
     std::string line{""};
     std::vector<std::string> args;
-    int status{-1};
+    int status{1};
 
     do {
-        std::cout << "> ";
+        std::cout << "nsh > ";
         nsh::read_line(line);
         args = nsh::split_line(line);
         status = nsh::execute(args);
