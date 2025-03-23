@@ -8,6 +8,10 @@
 #include <unordered_map>
 #include <filesystem>
 #include <unordered_set>
+#include <pwd.h>
+
+#define HOST_NAME_MAX 64
+#define LOGIN_NAME_MAX 64
 
 /*
 * To Do:
@@ -205,13 +209,28 @@ int nsh::execute(std::vector<std::string>& args) {
     return nsh::launch(args);
 }
 
+
 void nsh::loop() {
     std::string line{""};
     std::vector<std::string> args;
     int status{1};
 
+    // Hostname for Terminal
+    char hostname[HOST_NAME_MAX];
+    gethostname(hostname, HOST_NAME_MAX);
+    std::string hostStr(hostname);
+    hostStr = hostStr.substr(0, hostStr.find_last_of("."));
+    struct passwd *pw = getpwuid(geteuid());
+
     do {
-        std::cout << "nsh > ";
+        std::string current_path{std::filesystem::current_path().string()};
+
+        current_path = path_to_file(current_path);
+        if (current_path == "")
+            current_path = '~';
+
+        std::cout << pw->pw_name << "@" << hostStr << " " << current_path <<  " > ";
+
         nsh::read_line(line);
         args = nsh::split_line(line);
         status = nsh::execute(args);
