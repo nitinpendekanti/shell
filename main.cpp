@@ -7,10 +7,10 @@
 #include <errno.h>
 #include <unordered_map>
 #include <filesystem>
+#include <unordered_set>
 
 /*
 * To Do:
-    * add arguments to existing builtin commands
     * Autocomplete for tabs
     * Piping
     * Quoting and backslash escaping
@@ -44,7 +44,18 @@ std::unordered_map<std::string, std::function<int(std::vector<std::string>&)>> b
     {"ls", &nsh::ls}
 };
 
-std::string absolute_to_relative_path(std::string& path) {
+std::unordered_set<std::string> parse_flags(std::vector<std::string>& args) {
+    std::unordered_set<std::string> flags{};
+
+    for (int i = 1; i < args.size(); ++i) {
+        if (args[i][0] == '-')
+            flags.insert(args[i]);
+    }
+
+    return flags;
+}
+
+std::string path_to_file(std::string& path) {
     int pos = path.find_last_of("/");
 
     if (pos != std::string::npos) {
@@ -56,10 +67,16 @@ std::string absolute_to_relative_path(std::string& path) {
 
 int nsh::ls(std::vector<std::string>& args) {
     const std::filesystem::path current_path{std::filesystem::current_path()};
+    std::unordered_set<std::string> flags = parse_flags(args);
 
     for (auto const& dir_entry : std::filesystem::directory_iterator{current_path}) {
         std::string path = dir_entry.path();
-        std::cout << absolute_to_relative_path(path) << "        ";
+        std::string file_name = path_to_file(path);
+
+        if (file_name[0] == '.' && flags.find("-a") == flags.end() && flags.find("--all") == flags.end())
+            continue;
+        
+        std::cout << file_name << "        ";
     }
     std::cout << '\n';
 
@@ -180,7 +197,7 @@ int nsh::launch(std::vector<std::string>& args) {
 int nsh::execute(std::vector<std::string>& args) {
     if (args.size() == 0)
         return 1;
-    
+
     if (builtin_commands_map.find(args[0]) != builtin_commands_map.end()) {
         return builtin_commands_map[args[0]](args);
     }
