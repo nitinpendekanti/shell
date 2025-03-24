@@ -9,6 +9,9 @@
 #include <filesystem>
 #include <unordered_set>
 #include <pwd.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define HOST_NAME_MAX 64
 #define LOGIN_NAME_MAX 64
@@ -209,32 +212,85 @@ int nsh::execute(std::vector<std::string>& args) {
     return nsh::launch(args);
 }
 
+struct termios orig_termios;
+void disable_non_canonical_mode() {
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+}
 
-void nsh::loop() {
-    std::string line{""};
-    std::vector<std::string> args;
-    int status{1};
+void enable_non_canonical_mode() {
+    tcgetattr(STDIN_FILENO, &orig_termios);
+    atexit(disable_non_canonical_mode);
 
-    // Hostname for Terminal
+    struct termios raw = orig_termios;
+
+    raw.c_lflag &= ~(ICANON | ECHO | ISIG);
+    raw.c_oflag &= ~(OPOST);
+
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+void print_terminal_prompt() {
+    disable_non_canonical_mode();
     char hostname[HOST_NAME_MAX];
     gethostname(hostname, HOST_NAME_MAX);
     std::string hostStr(hostname);
     hostStr = hostStr.substr(0, hostStr.find_last_of("."));
     struct passwd *pw = getpwuid(geteuid());
 
-    do {
-        std::string current_path{std::filesystem::current_path().string()};
+    std::string current_path{std::filesystem::current_path().string()};
 
-        current_path = path_to_file(current_path);
-        if (current_path == "")
-            current_path = '~';
+    current_path = path_to_file(current_path);
+    if (current_path == "")
+        current_path = '~';
 
-        std::cout << pw->pw_name << "@" << hostStr << " " << current_path <<  " > ";
+    std::cout << pw->pw_name << "@" << hostStr << " " << current_path <<  " > ";
+    enable_non_canonical_mode();
+}
 
-        nsh::read_line(line);
-        args = nsh::split_line(line);
-        status = nsh::execute(args);
-    } while(status);
+void nsh::loop() {
+    enable_non_canonical_mode();
+
+    std::string line{""};
+    int status{1};
+    std::vector<std::string> args;
+
+    char c;
+
+    while (status) {
+        print_terminal_prompt();
+        std::cout.flush();
+
+        line.clear();
+
+        while (read(STDIN_FILENO, &c, 1) == 1) {
+            if (c == '\n') {
+                std::cout.flush();
+                disable_non_canonical_mode();
+    
+                write(STDOUT_FILENO, "\r\n", 2);
+                args = nsh::split_line(line);
+                status = nsh::execute(args);
+    
+                write(STDOUT_FILENO, "\r", 1);
+                std::cout.flush();
+    
+                enable_non_canonical_mode();
+                break;
+            } else if(c == 3) {
+                write(STDOUT_FILENO, "\r\n", 2);
+                std::exit(0);
+            } else if ((c == 127 || c == 8) && !line.empty()) {
+                write(STDOUT_FILENO, "\b \b", 3);
+                line.pop_back();
+            } else if(!iscntrl(c)) {
+                write(STDOUT_FILENO, &c, 1);
+                line += c;
+            }
+        }    
+    }
+
+
+    disable_non_canonical_mode();
 }
 
 int main(int argc, char* argv[]) {
