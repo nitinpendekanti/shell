@@ -1,2 +1,2 @@
 run:
-	@go run ./cmd/shell
+	@go run ./cmd/app

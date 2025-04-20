@@ -12,42 +12,34 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"builtins"
+	"utils"
 )
 
 /*** data ***/
 
 const ArgsSize = 20
 
-var builtinFuncMap map[string]func(c *Command) 
-
-/*** structs ***/
-
-type Command struct {
-	cmdLineInput string
-	script string
-	args []string
+var builtinFuncMap = map[string]func(c *utils.Command) {
+	"pwd": builtins.Pwd,
 }
-
-/*** built-in functions ***/
-
-
 
 /*** arguments handlers ***/
 
-func executeArgs(c *Command) {
-	cmd := exec.Command(c.script, c.args[1:]...)
+func executeArgs(c *utils.Command) {
+	cmd := exec.Command(c.Script, c.Args[1:]...)
 	cmd.Stdout = os.Stdout
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("Command not found: %s\n", c.script)
+		fmt.Printf("Command not found: %s\n", c.Script)
 	}		
 }
 
-func argHandler(c *Command) {
-	if c.script == "exit" {
+func argHandler(c *utils.Command) {
+	if c.Script == "exit" {
 		os.Exit(0)
-	} else if c.script == "" {
+	} else if c.Script == "" {
 		return
-	} else if builtinFunc, ok := builtinFuncMap[c.script]; ok {
+	} else if builtinFunc, ok := builtinFuncMap[c.Script]; ok {
 		builtinFunc(c)
 	} else {
 		executeArgs(c)
@@ -56,24 +48,24 @@ func argHandler(c *Command) {
 
 /*** command initializer & methods ***/
 
-func newCommand() Command {
-	return Command{
+func newCommand() utils.Command {
+	return utils.Command{
 		"",
 		"",
 		make([]string, ArgsSize),
 	}
 }
 
-func (c *Command) readLine() {
+func readLine(c *utils.Command) {
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
-	c.cmdLineInput = scanner.Text()
+	c.CmdLineInput = scanner.Text()
 }
 
-func (c *Command) parseLine() {
-	c.args = strings.Fields(c.cmdLineInput)
-	if len(c.args) > 0 {
-		c.script = strings.ToLower(c.args[0])
+func parseLine(c *utils.Command) {
+	c.Args = strings.Fields(c.CmdLineInput)
+	if len(c.Args) > 0 {
+		c.Script = strings.ToLower(c.Args[0])
 	}
 }
 
@@ -84,9 +76,8 @@ func Loop() {
 
 	for {
 		fmt.Print("> ")
-		cmd.readLine()
-		cmd.parseLine()
-		
+		readLine(&cmd)
+		parseLine(&cmd)
 		argHandler(&cmd)
 	}
 }
