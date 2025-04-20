@@ -22,6 +22,7 @@ const ArgsSize = 20
 
 var builtinFuncMap = map[string]func(c *utils.Command) {
 	"pwd": builtins.Pwd,
+	"ls":  builtins.Ls,
 }
 
 /*** arguments handlers ***/
