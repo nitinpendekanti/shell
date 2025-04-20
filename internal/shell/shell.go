@@ -2,7 +2,7 @@
 /*** Simple Shell Written in Golang -- Nitin Pendekanti ***/
 /**********************************************************/
 
-package main
+package shell 
 
 /*** imports ***/
 
@@ -56,7 +56,7 @@ func argHandler(c *Command) {
 
 /*** command initializer & methods ***/
 
-func NewCommand() Command {
+func newCommand() Command {
 	return Command{
 		"",
 		"",
@@ -79,8 +79,8 @@ func (c *Command) parseLine() {
 
 /*** main ***/
 
-func loop() {
-	cmd := NewCommand()
+func Loop() {
+	cmd := newCommand()
 
 	for {
 		fmt.Print("> ")
@@ -89,8 +89,4 @@ func loop() {
 		
 		argHandler(&cmd)
 	}
-}
-
-func main() {
-	loop()
 }
