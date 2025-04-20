@@ -34,9 +34,6 @@ type Command struct {
 
 /*** arguments handlers ***/
 
-func exitOnError() {
-}
-
 func executeArgs(c *Command) {
 	cmd := exec.Command(c.script, c.args[1:]...)
 	cmd.Stdout = os.Stdout
