@@ -11,18 +11,20 @@ import (
 	"bufio"
 	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 	"builtins"
 	"utils"
+	"log"
 )
 
 /*** data ***/
 
 const ArgsSize = 20
+const FlagsSize = 25
 
 var builtinFuncMap = map[string]func(c *utils.Command) {
 	"pwd": builtins.Pwd,
-	"ls":  builtins.Ls,
 }
 
 /*** arguments handlers ***/
@@ -53,7 +55,8 @@ func newCommand() utils.Command {
 	return utils.Command{
 		"",
 		"",
-		make([]string, ArgsSize),
+		make([]string, 0, ArgsSize),
+		make([]string, 0, FlagsSize),
 	}
 }
 
@@ -63,11 +66,40 @@ func readLine(c *utils.Command) {
 	c.CmdLineInput = scanner.Text()
 }
 
-func parseLine(c *utils.Command) {
+func parseLine(c *utils.Command) error {
 	c.Args = strings.Fields(c.CmdLineInput)
 	if len(c.Args) > 0 {
 		c.Script = strings.ToLower(c.Args[0])
 	}
+	err := c.ExtractFlags()
+
+	return err
+}
+
+/*** prompt creator ***/
+
+func getPrompt() (string, error) {
+	currUser, err := user.Current()
+	hostname, err2 := os.Hostname()
+
+	if err != nil {
+		return "", err
+	} else if err2 != nil {
+		return "", err2
+	}
+
+	username := currUser.Username
+	path, err3 := os.Getwd()
+
+	if err3 != nil {
+		return "", err3
+	}
+
+	parts := strings.Split(path, "/") 
+	dir := parts[len(parts) - 1]
+
+	prompt := fmt.Sprintf("%s@%s %s > ", username, hostname, dir)
+	return prompt, nil
 }
 
 /*** main ***/
@@ -76,9 +108,18 @@ func Loop() {
 	cmd := newCommand()
 
 	for {
-		fmt.Print("> ")
+		prompt, promptErr := getPrompt()
+
+		if promptErr != nil {
+			log.Fatalf("Error with getting prompt: %s\n", promptErr)
+		}
+
+		fmt.Print(prompt)
 		readLine(&cmd)
-		parseLine(&cmd)
-		argHandler(&cmd)
+		err := parseLine(&cmd)
+
+		if err == nil {
+			argHandler(&cmd)
+		}
 	}
 }
